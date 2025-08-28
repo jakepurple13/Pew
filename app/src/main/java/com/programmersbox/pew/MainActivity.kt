@@ -194,6 +194,38 @@ class MainActivity : ComponentActivity() {
                         center = center,
                         blendMode = BlendMode.Clear
                     )
+
+                    // Draw binocular-style scope lines from the circle edge inward
+                    val lineLength = adjustedRadius * 0.18f
+                    val stroke = 2.dp.toPx()
+                    // Top line: from top edge toward center
+                    drawLine(
+                        color = Color.White,
+                        start = Offset(center.x, center.y - adjustedRadius),
+                        end = Offset(center.x, center.y - adjustedRadius + lineLength),
+                        strokeWidth = stroke
+                    )
+                    // Bottom line: from bottom edge toward center
+                    drawLine(
+                        color = Color.White,
+                        start = Offset(center.x, center.y + adjustedRadius),
+                        end = Offset(center.x, center.y + adjustedRadius - lineLength),
+                        strokeWidth = stroke
+                    )
+                    // Left line: from left edge toward center
+                    drawLine(
+                        color = Color.White,
+                        start = Offset(center.x - adjustedRadius, center.y),
+                        end = Offset(center.x - adjustedRadius + lineLength, center.y),
+                        strokeWidth = stroke
+                    )
+                    // Right line: from right edge toward center
+                    drawLine(
+                        color = Color.White,
+                        start = Offset(center.x + adjustedRadius, center.y),
+                        end = Offset(center.x + adjustedRadius - lineLength, center.y),
+                        strokeWidth = stroke
+                    )
                 }
 
                 Icon(

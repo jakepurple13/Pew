@@ -169,7 +169,7 @@ class MainActivity : ComponentActivity() {
                     //.background(Color.Black)
                 ) {
                     // Draw a black rectangle to cover the entire canvas initially
-                    drawRect(Color.Black)
+                    drawRect(Color.Black.copy(alpha = .85f))
 
                     // Draw the transparent circle using BlendMode.Clear
                     // This will "clear" the pixels where the circle is drawn,

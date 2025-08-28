@@ -219,13 +219,36 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            Text(
-                "${currentZoomRatio}x",
-                color = Color.White,
+            Row(
+                horizontalArrangement = Arrangement.SpaceAround,
                 modifier = Modifier
+                    .fillMaxWidth()
+                    .animateContentSize()
                     .align(Alignment.TopCenter)
-                    .systemBarsPadding()
-            )
+                    .systemBarsPadding(),
+            ) {
+                val zoomState = viewModel.cameraInfo?.zoomState?.value
+
+                zoomState?.let {
+                    Text(
+                        "${it.minZoomRatio}x",
+                        color = Color.White,
+                    )
+                }
+
+                Text(
+                    "${currentZoomRatio}x",
+                    color = Color.White,
+                )
+
+                zoomState?.let {
+                    Text(
+                        "${it.maxZoomRatio}x",
+                        color = Color.White,
+                    )
+                }
+            }
+
 
             Row(
                 horizontalArrangement = Arrangement.SpaceEvenly,

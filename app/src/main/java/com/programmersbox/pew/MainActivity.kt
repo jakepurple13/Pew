@@ -174,9 +174,23 @@ class MainActivity : ComponentActivity() {
                     // Draw the transparent circle using BlendMode.Clear
                     // This will "clear" the pixels where the circle is drawn,
                     // revealing the content underneath (which is the main Box's black background).
+                    // Compute a slightly smaller radius at or near max zoom
+                    val zoomState = viewModel.cameraInfo?.zoomState?.value
+                    val baseRadius = size.minDimension / 2f
+                    val shrinkFraction = 0.05f // ~3% shrink at max zoom
+                    val adjustedRadius = if (zoomState != null) {
+                        val minZ = zoomState.minZoomRatio
+                        val maxZ = zoomState.maxZoomRatio
+                        val curZ = currentZoomRatio.coerceIn(minZ, maxZ)
+                        // Interpolate shrink based on proximity to max zoom (0..1)
+                        val t = if (maxZ > minZ) ((curZ - minZ) / (maxZ - minZ)) else 0f
+                        val shrink = baseRadius * shrinkFraction * t
+                        baseRadius - shrink
+                    } else baseRadius
+
                     drawCircle(
                         color = Color.Transparent, // The color doesn't matter much with BlendMode.Clear
-                        radius = size.minDimension / 2f, // Adjust radius as needed
+                        radius = adjustedRadius, // Slightly smaller at max zoom
                         center = center,
                         blendMode = BlendMode.Clear
                     )

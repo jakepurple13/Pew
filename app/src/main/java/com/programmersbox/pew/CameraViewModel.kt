@@ -1,9 +1,9 @@
 package com.programmersbox.pew
 
-import android.annotation.SuppressLint
 import android.content.ContentValues
 import android.content.Context
 import android.media.MediaActionSound
+import android.media.MediaPlayer
 import android.provider.MediaStore
 import androidx.camera.core.CameraControl
 import androidx.camera.core.CameraInfo
@@ -16,11 +16,8 @@ import androidx.camera.core.SurfaceOrientedMeteringPointFactory
 import androidx.camera.core.SurfaceRequest
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.lifecycle.awaitInstance
-import androidx.camera.video.MediaStoreOutputOptions
 import androidx.camera.video.Recorder
-import androidx.camera.video.Recording
 import androidx.camera.video.VideoCapture
-import androidx.camera.video.VideoRecordEvent
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -28,20 +25,14 @@ import androidx.compose.ui.geometry.Offset
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.awaitCancellation
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.concurrent.Executors
-import kotlin.time.Duration.Companion.nanoseconds
 
 
 class CameraViewModel: ViewModel() {
@@ -79,6 +70,7 @@ class CameraViewModel: ViewModel() {
     private var surfaceMeteringPointFactory: SurfaceOrientedMeteringPointFactory? = null
     private var cameraControl: CameraControl? = null
     var cameraInfo: CameraInfo? = null
+    var mediaPlayer: MediaPlayer? = null
 
     var cameraSelector by mutableStateOf(CameraSelector.DEFAULT_BACK_CAMERA)
 
@@ -119,7 +111,8 @@ class CameraViewModel: ViewModel() {
 
                 override fun onCaptureStarted() {
                     super.onCaptureStarted()
-                    mediaActionSound.play(MediaActionSound.SHUTTER_CLICK)
+                    //mediaActionSound.play(MediaActionSound.SHUTTER_CLICK)
+                    playSound()
                     if (canProgress) savingImageProgress = 0f
                 }
 
@@ -168,11 +161,15 @@ class CameraViewModel: ViewModel() {
         cameraControl = camera.cameraControl
         cameraInfo = camera.cameraInfo
 
+        mediaPlayer = MediaPlayer.create(appContext, R.raw.pew_pew_lame_sound_effect)
+
         // Cancellation signals we're done with the camera
         try {
             awaitCancellation()
         } finally {
             processCameraProvider.unbindAll()
+            mediaPlayer?.release()
+            mediaPlayer = null
         }
     }
 
@@ -184,8 +181,20 @@ class CameraViewModel: ViewModel() {
         }
     }
 
+    private fun playSound() {
+        mediaPlayer?.let {
+            if (it.isPlaying) {
+                it.stop()
+                it.prepare() // Re-prepare to play from beginning
+            }
+        }
+        mediaPlayer?.start()
+    }
+
     override fun onCleared() {
         super.onCleared()
         mediaActionSound.release()
+        mediaPlayer?.release()
+        mediaPlayer = null
     }
 }

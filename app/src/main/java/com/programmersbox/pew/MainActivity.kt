@@ -17,6 +17,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -86,8 +87,8 @@ class MainActivity : ComponentActivity() {
     ) {
         var hasCameraPermission by remember { mutableStateOf(false) }
         val permissionLauncher =
-            rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-                if (granted) {
+            rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+                if (granted.all { it.value }) {
                     hasCameraPermission = true
                 }
             }
@@ -95,7 +96,12 @@ class MainActivity : ComponentActivity() {
         val context = LocalContext.current
         val lifecycleOwner = LocalLifecycleOwner.current
         LaunchedEffect(lifecycleOwner, viewModel.cameraSelector) {
-            permissionLauncher.launch(Manifest.permission.CAMERA)
+            permissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.CAMERA,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE
+                )
+            )
             viewModel.bindToCamera(context.applicationContext, lifecycleOwner)
         }
 
@@ -131,13 +137,16 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier
                         .fillMaxSize()
                         .pointerInput(viewModel, coordinateTransformer) {
-                            /*detectTapGestures { tapCoords ->
-                                with(coordinateTransformer) {
-                                    viewModel.tapToFocus(tapCoords.transform())
+                            detectTapGestures(
+                                onPress = { tapCoords ->
+                                    with(coordinateTransformer) {
+                                        viewModel.tapToFocus(tapCoords.transform())
+                                    }
+                                    autofocusRequest = UUID.randomUUID() to tapCoords
                                 }
-                                autofocusRequest = UUID.randomUUID() to tapCoords
-                            }*/
-
+                            )
+                        }
+                        .pointerInput(viewModel) {
                             detectTransformGestures { _, _, zoom, _ ->
                                 currentZoomRatio *= zoom
                                 // Clamp the zoom ratio to valid range (e.g., minZoomRatio to maxZoomRatio)
@@ -241,17 +250,16 @@ class MainActivity : ComponentActivity() {
                         contentDescription = "Take picture"
                     )
                 }
-            }
 
-            IconButton(
-                onClick = {},
-                modifier = Modifier
-                    .alpha(0f)
-            ) {
-                Icon(
-                    Icons.Default.Circle,
-                    contentDescription = "Invisible",
-                )
+                IconButton(
+                    onClick = {},
+                    modifier = Modifier.alpha(0f)
+                ) {
+                    Icon(
+                        Icons.Default.Circle,
+                        contentDescription = "Invisible",
+                    )
+                }
             }
         }
     }

@@ -1,11 +1,7 @@
 package com.programmersbox.pew
 
 import android.Manifest
-import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
-import android.provider.MediaStore
-import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -15,40 +11,37 @@ import androidx.activity.viewModels
 import androidx.camera.compose.CameraXViewfinder
 import androidx.camera.viewfinder.compose.MutableCoordinateTransformer
 import androidx.camera.viewfinder.core.ImplementationMode
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.windowInsetsBottomHeight
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Cameraswitch
+import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.OutlinedIconButton
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -58,20 +51,20 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.geometry.takeOrElse
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.round
-import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.programmersbox.pew.ui.theme.PewTheme
 import kotlinx.coroutines.delay
 import java.util.UUID
-
-import com.programmersbox.pew.ui.theme.PewTheme
 
 class MainActivity : ComponentActivity() {
 
@@ -101,7 +94,7 @@ class MainActivity : ComponentActivity() {
         val surfaceRequest by viewModel.surfaceRequests.collectAsStateWithLifecycle()
         val context = LocalContext.current
         val lifecycleOwner = LocalLifecycleOwner.current
-        LaunchedEffect(lifecycleOwner) {
+        LaunchedEffect(lifecycleOwner, viewModel.cameraSelector) {
             permissionLauncher.launch(Manifest.permission.CAMERA)
             viewModel.bindToCamera(context.applicationContext, lifecycleOwner)
         }
@@ -109,6 +102,8 @@ class MainActivity : ComponentActivity() {
         Box(
             modifier = Modifier.fillMaxSize()
         ) {
+            var currentZoomRatio by remember { mutableFloatStateOf(1.0f) }
+
             var autofocusRequest by remember { mutableStateOf(UUID.randomUUID() to Offset.Unspecified) }
 
             val autofocusRequestId = autofocusRequest.first
@@ -136,13 +131,53 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier
                         .fillMaxSize()
                         .pointerInput(viewModel, coordinateTransformer) {
-                            detectTapGestures { tapCoords ->
+                            /*detectTapGestures { tapCoords ->
                                 with(coordinateTransformer) {
                                     viewModel.tapToFocus(tapCoords.transform())
                                 }
                                 autofocusRequest = UUID.randomUUID() to tapCoords
+                            }*/
+
+                            detectTransformGestures { _, _, zoom, _ ->
+                                currentZoomRatio *= zoom
+                                // Clamp the zoom ratio to valid range (e.g., minZoomRatio to maxZoomRatio)
+                                val zoomState = viewModel.cameraInfo?.zoomState?.value
+                                zoomState?.let {
+                                    currentZoomRatio = currentZoomRatio.coerceIn(
+                                        it.minZoomRatio,
+                                        it.maxZoomRatio
+                                    )
+                                    viewModel.setZoom(currentZoomRatio)
+                                }
                             }
                         },
+                )
+
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                    //.background(Color.Black)
+                ) {
+                    // Draw a black rectangle to cover the entire canvas initially
+                    drawRect(Color.Black)
+
+                    // Draw the transparent circle using BlendMode.Clear
+                    // This will "clear" the pixels where the circle is drawn,
+                    // revealing the content underneath (which is the main Box's black background).
+                    drawCircle(
+                        color = Color.Transparent, // The color doesn't matter much with BlendMode.Clear
+                        radius = size.minDimension / 2f, // Adjust radius as needed
+                        center = center,
+                        blendMode = BlendMode.Clear
+                    )
+                }
+
+                Icon(
+                    Icons.Default.Add,
+                    null,
+                    tint = Color.White,
+                    modifier = Modifier.align(Alignment.Center)
                 )
 
                 AnimatedVisibility(
@@ -161,24 +196,61 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            OutlinedIconButton(
-                onClick = { viewModel.takePicture(context) },
-                colors = IconButtonDefaults.outlinedIconButtonColors(
-                    contentColor = Color.White
-                ),
-                border = ButtonDefaults
-                    .outlinedButtonBorder(enabled = true)
-                    .copy(
-                        brush = SolidColor(Color.White),
-                        width = 3.dp,
-                    ),
+            Text(
+                "${currentZoomRatio}x",
+                color = Color.White,
                 modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .systemBarsPadding()
+            )
+
+            Row(
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .animateContentSize()
                     .align(Alignment.BottomCenter)
-                    .windowInsetsBottomHeight(WindowInsets.navigationBars)
+                    .systemBarsPadding(),
+            ) {
+                OutlinedIconButton(
+                    onClick = { viewModel.flipCamera() },
+                    colors = IconButtonDefaults.outlinedIconButtonColors(
+                        contentColor = Color.White
+                    ),
+                ) {
+                    Icon(
+                        Icons.Default.Cameraswitch,
+                        contentDescription = "Flip Camera"
+                    )
+                }
+
+                OutlinedIconButton(
+                    onClick = { viewModel.takePicture(context) },
+                    colors = IconButtonDefaults.outlinedIconButtonColors(
+                        contentColor = Color.White
+                    ),
+                    border = ButtonDefaults
+                        .outlinedButtonBorder(enabled = true)
+                        .copy(
+                            brush = SolidColor(Color.White),
+                            width = 3.dp,
+                        ),
+                ) {
+                    Icon(
+                        Icons.Default.Circle,
+                        contentDescription = "Take picture"
+                    )
+                }
+            }
+
+            IconButton(
+                onClick = {},
+                modifier = Modifier
+                    .alpha(0f)
             ) {
                 Icon(
                     Icons.Default.Circle,
-                    contentDescription = "Take picture"
+                    contentDescription = "Invisible",
                 )
             }
         }

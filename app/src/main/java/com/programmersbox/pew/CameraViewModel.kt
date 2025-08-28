@@ -6,6 +6,7 @@ import android.content.Context
 import android.media.MediaActionSound
 import android.provider.MediaStore
 import androidx.camera.core.CameraControl
+import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageCapture
@@ -77,6 +78,9 @@ class CameraViewModel: ViewModel() {
 
     private var surfaceMeteringPointFactory: SurfaceOrientedMeteringPointFactory? = null
     private var cameraControl: CameraControl? = null
+    var cameraInfo: CameraInfo? = null
+
+    var cameraSelector by mutableStateOf(CameraSelector.DEFAULT_BACK_CAMERA)
 
     private val dateFormatter = SimpleDateFormat("yyyy_MMM_dd_HH_mm_ss", Locale.US)
 
@@ -140,12 +144,19 @@ class CameraViewModel: ViewModel() {
         }
     }
 
+    fun setZoom(zoom: Float) {
+        cameraControl?.setZoomRatio(zoom)
+    }
+
     //This handles the entire lifecycle
-    suspend fun bindToCamera(appContext: Context, lifecycleOwner: LifecycleOwner) {
+    suspend fun bindToCamera(
+        appContext: Context,
+        lifecycleOwner: LifecycleOwner
+    ) {
         val processCameraProvider = ProcessCameraProvider.awaitInstance(appContext)
         val camera = processCameraProvider.bindToLifecycle(
             lifecycleOwner,
-            CameraSelector.DEFAULT_FRONT_CAMERA,
+            cameraSelector,
             cameraPreviewUseCase,
             imageCapture,
             videoCapture
@@ -155,12 +166,21 @@ class CameraViewModel: ViewModel() {
         canProgress = capabilities.isCaptureProcessProgressSupported
 
         cameraControl = camera.cameraControl
+        cameraInfo = camera.cameraInfo
 
         // Cancellation signals we're done with the camera
         try {
             awaitCancellation()
         } finally {
             processCameraProvider.unbindAll()
+        }
+    }
+
+    fun flipCamera() {
+        cameraSelector = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) {
+            CameraSelector.DEFAULT_FRONT_CAMERA
+        } else {
+            CameraSelector.DEFAULT_BACK_CAMERA
         }
     }
 

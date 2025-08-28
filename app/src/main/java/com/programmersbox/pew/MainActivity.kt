@@ -1,0 +1,186 @@
+package com.programmersbox.pew
+
+import android.Manifest
+import android.content.Intent
+import android.net.Uri
+import android.os.Bundle
+import android.provider.MediaStore
+import android.view.WindowManager
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.camera.compose.CameraXViewfinder
+import androidx.camera.viewfinder.compose.MutableCoordinateTransformer
+import androidx.camera.viewfinder.core.ImplementationMode
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.OutlinedIconButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.isSpecified
+import androidx.compose.ui.geometry.takeOrElse
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.round
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.delay
+import java.util.UUID
+
+import com.programmersbox.pew.ui.theme.PewTheme
+
+class MainActivity : ComponentActivity() {
+
+    private val viewModel: CameraViewModel by viewModels()
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            PewTheme {
+                CameraView(viewModel)
+            }
+        }
+    }
+
+    @Composable
+    private fun CameraView(
+        viewModel: CameraViewModel,
+    ) {
+        var hasCameraPermission by remember { mutableStateOf(false) }
+        val permissionLauncher =
+            rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+                if (granted) {
+                    hasCameraPermission = true
+                }
+            }
+        val surfaceRequest by viewModel.surfaceRequests.collectAsStateWithLifecycle()
+        val context = LocalContext.current
+        val lifecycleOwner = LocalLifecycleOwner.current
+        LaunchedEffect(lifecycleOwner) {
+            permissionLauncher.launch(Manifest.permission.CAMERA)
+            viewModel.bindToCamera(context.applicationContext, lifecycleOwner)
+        }
+
+        Box(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            var autofocusRequest by remember { mutableStateOf(UUID.randomUUID() to Offset.Unspecified) }
+
+            val autofocusRequestId = autofocusRequest.first
+            // Show the autofocus indicator if the offset is specified
+            val showAutofocusIndicator = autofocusRequest.second.isSpecified
+            // Cache the initial coords for each autofocus request
+            val autofocusCoords = remember(autofocusRequestId) { autofocusRequest.second }
+
+            // Queue hiding the request for each unique autofocus tap
+            if (showAutofocusIndicator) {
+                LaunchedEffect(autofocusRequestId) {
+                    delay(1000)
+                    // Clear the offset to finish the request and hide the indicator
+                    autofocusRequest = autofocusRequestId to Offset.Unspecified
+                }
+            }
+
+            surfaceRequest?.let { request ->
+                val coordinateTransformer = remember { MutableCoordinateTransformer() }
+
+                CameraXViewfinder(
+                    surfaceRequest = request,
+                    coordinateTransformer = coordinateTransformer,
+                    implementationMode = ImplementationMode.EMBEDDED,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(viewModel, coordinateTransformer) {
+                            detectTapGestures { tapCoords ->
+                                with(coordinateTransformer) {
+                                    viewModel.tapToFocus(tapCoords.transform())
+                                }
+                                autofocusRequest = UUID.randomUUID() to tapCoords
+                            }
+                        },
+                )
+
+                AnimatedVisibility(
+                    visible = showAutofocusIndicator,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                    modifier = Modifier
+                        .offset { autofocusCoords.takeOrElse { Offset.Zero }.round() }
+                        .offset((-24).dp, (-24).dp)
+                ) {
+                    Spacer(
+                        Modifier
+                            .border(2.dp, Color.White, CircleShape)
+                            .size(48.dp)
+                    )
+                }
+            }
+
+            OutlinedIconButton(
+                onClick = { viewModel.takePicture(context) },
+                colors = IconButtonDefaults.outlinedIconButtonColors(
+                    contentColor = Color.White
+                ),
+                border = ButtonDefaults
+                    .outlinedButtonBorder(enabled = true)
+                    .copy(
+                        brush = SolidColor(Color.White),
+                        width = 3.dp,
+                    ),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .windowInsetsBottomHeight(WindowInsets.navigationBars)
+            ) {
+                Icon(
+                    Icons.Default.Circle,
+                    contentDescription = "Take picture"
+                )
+            }
+        }
+    }
+}
